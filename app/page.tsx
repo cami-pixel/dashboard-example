@@ -1,6 +1,8 @@
 import { getTicketsByView } from "@/lib/zoho";
 import DashboardView from "./DashboardView";
 
+export const dynamic = "force-dynamic";
+
 export default async function Dashboard() {
   const viewId = process.env.ZOHO_VIEW_ID;
 
