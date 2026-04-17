@@ -93,7 +93,7 @@ export interface Ticket {
   contactName: string;
   contactEmail: string | null;
   createdTime: string;
-  modifiedTime: string;
+  lastActivityTime: string;
   webUrl: string | null;
 }
 
@@ -110,6 +110,17 @@ interface RawTicket {
     lastName?: string;
     email?: string;
   };
+}
+
+async function getLatestThreadTime(ticketId: string): Promise<string | null> {
+  try {
+    const data = await deskFetch<{ createdTime?: string }>(
+      `/tickets/${ticketId}/latestThread`,
+    );
+    return data.createdTime ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
@@ -138,7 +149,7 @@ export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
         contactName: name || "—",
         contactEmail: t.contact?.email ?? null,
         createdTime: t.createdTime,
-        modifiedTime: t.modifiedTime ?? t.createdTime,
+        lastActivityTime: t.modifiedTime ?? t.createdTime,
         webUrl: t.webUrl ?? null,
       });
     }
@@ -146,6 +157,18 @@ export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
     if (batch.length < limit) break;
     from += limit;
   }
+
+  await Promise.all(
+    tickets.map(async (ticket) => {
+      const threadTime = await getLatestThreadTime(ticket.id);
+      if (!threadTime) return;
+      const currentMs = new Date(ticket.lastActivityTime).getTime();
+      const threadMs = new Date(threadTime).getTime();
+      if (threadMs > currentMs) {
+        ticket.lastActivityTime = threadTime;
+      }
+    }),
+  );
 
   return tickets;
 }

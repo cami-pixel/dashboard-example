@@ -174,7 +174,7 @@ export default function DashboardView({ tickets }: { tickets: Ticket[] }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredTickets.map((t) => {
-                    const lastActivity = formatRelativeTime(t.modifiedTime);
+                    const lastActivity = formatRelativeTime(t.lastActivityTime);
                     return (
                       <tr key={t.id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 align-top">
