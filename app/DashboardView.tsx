@@ -105,18 +105,32 @@ export default function DashboardView({ tickets }: { tickets: Ticket[] }) {
               key={status}
               type="button"
               onClick={() => setSelectedStatus(isSelected ? null : status)}
-              className={`cursor-pointer rounded-xl border p-5 text-left transition ${
+              className={`cursor-pointer rounded-xl border p-5 text-left shadow-sm transition ${
                 isSelected
-                  ? "border-[#FF4D3E] bg-white shadow-md ring-2 ring-[#FF4D3E]/20"
-                  : "border-slate-200 bg-white shadow-sm hover:border-slate-300 hover:shadow-md"
+                  ? "border-[#FF4D3E] bg-[#FF4D3E] shadow-md"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md"
               }`}
             >
-              <div className="mb-2 text-sm font-medium text-slate-600">
+              <div
+                className={`mb-2 text-sm font-medium ${
+                  isSelected ? "text-white/90" : "text-slate-600"
+                }`}
+              >
                 {status}
               </div>
               <div className="flex items-baseline gap-2">
-                <div className="text-3xl font-bold text-slate-900">{count}</div>
-                <div className="text-xs text-slate-400">
+                <div
+                  className={`text-3xl font-bold ${
+                    isSelected ? "text-white" : "text-slate-900"
+                  }`}
+                >
+                  {count}
+                </div>
+                <div
+                  className={`text-xs ${
+                    isSelected ? "text-white/70" : "text-slate-400"
+                  }`}
+                >
                   {((count / tickets.length) * 100).toFixed(0)}%
                 </div>
               </div>

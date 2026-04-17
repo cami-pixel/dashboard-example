@@ -112,27 +112,56 @@ interface RawTicket {
   };
 }
 
+async function fetchLatestCreatedTime(
+  ticketId: string,
+  resource: "threads" | "comments",
+): Promise<number> {
+  try {
+    let latestMs = 0;
+    let from = 0;
+    const limit = 100;
+
+    while (true) {
+      const data = await deskFetch<{
+        data?: Array<{ createdTime?: string }>;
+      }>(`/tickets/${ticketId}/${resource}`, {
+        limit: String(limit),
+        from: String(from),
+      });
+
+      const items = data.data ?? [];
+      if (items.length === 0) break;
+
+      for (const item of items) {
+        if (item.createdTime) {
+          const ms = new Date(item.createdTime).getTime();
+          if (ms > latestMs) latestMs = ms;
+        }
+      }
+
+      if (items.length < limit) break;
+      from += limit;
+    }
+
+    return latestMs;
+  } catch (e) {
+    console.error(
+      `Failed to fetch ${resource} for ticket ${ticketId}:`,
+      e instanceof Error ? e.message : e,
+    );
+    return 0;
+  }
+}
+
 async function getLatestActivityTime(
   ticketId: string,
 ): Promise<string | null> {
-  try {
-    const data = await deskFetch<{
-      data?: Array<{ createdTime?: string }>;
-    }>(`/tickets/${ticketId}/conversations`, { limit: "100" });
-
-    const conversations = data.data ?? [];
-    let latestMs = 0;
-    for (const c of conversations) {
-      if (c.createdTime) {
-        const ms = new Date(c.createdTime).getTime();
-        if (ms > latestMs) latestMs = ms;
-      }
-    }
-    return latestMs > 0 ? new Date(latestMs).toISOString() : null;
-  } catch (e) {
-    console.error(`Failed to fetch conversations for ticket ${ticketId}:`, e);
-    return null;
-  }
+  const [threadsMs, commentsMs] = await Promise.all([
+    fetchLatestCreatedTime(ticketId, "threads"),
+    fetchLatestCreatedTime(ticketId, "comments"),
+  ]);
+  const latestMs = Math.max(threadsMs, commentsMs);
+  return latestMs > 0 ? new Date(latestMs).toISOString() : null;
 }
 
 export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
