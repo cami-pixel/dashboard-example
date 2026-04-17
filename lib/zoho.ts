@@ -119,13 +119,14 @@ async function fetchLatestCreatedTime(
   try {
     let latestMs = 0;
     let from = 0;
-    const limit = 100;
+    const pageSize = 50;
+    const safetyCap = 2000;
 
-    while (true) {
+    while (from < safetyCap) {
       const data = await deskFetch<{
         data?: Array<{ createdTime?: string }>;
       }>(`/tickets/${ticketId}/${resource}`, {
-        limit: String(limit),
+        limit: String(pageSize),
         from: String(from),
       });
 
@@ -139,8 +140,7 @@ async function fetchLatestCreatedTime(
         }
       }
 
-      if (items.length < limit) break;
-      from += limit;
+      from += items.length;
     }
 
     return latestMs;

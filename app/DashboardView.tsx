@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Ticket } from "@/lib/zoho";
 
-function formatRelativeTime(dateStr: string): { text: string; className: string } {
+function formatRelativeTime(dateStr: string): {
+  text: string;
+  className: string;
+} {
   const date = new Date(dateStr);
   const diffMs = Date.now() - date.getTime();
   const diffMinutes = Math.floor(diffMs / 60_000);
@@ -20,10 +23,10 @@ function formatRelativeTime(dateStr: string): { text: string; className: string 
 
   const className =
     diffDays >= 7
-      ? "font-medium text-red-600"
+      ? "bg-red-50 text-red-700"
       : diffDays >= 3
-        ? "font-medium text-amber-600"
-        : "text-slate-700";
+        ? "bg-amber-50 text-amber-700"
+        : "bg-emerald-50 text-emerald-700";
 
   return { text, className };
 }
@@ -219,10 +222,12 @@ export default function DashboardView({ tickets }: { tickets: Ticket[] }) {
                         <td className="px-6 py-4 align-top text-sm text-slate-700">
                           {new Date(t.createdTime).toLocaleDateString()}
                         </td>
-                        <td
-                          className={`px-6 py-4 align-top text-sm ${lastActivity.className}`}
-                        >
-                          {lastActivity.text}
+                        <td className="px-6 py-4 align-top">
+                          <span
+                            className={`inline-block rounded-full px-3 py-1 text-sm font-medium ${lastActivity.className}`}
+                          >
+                            {lastActivity.text}
+                          </span>
                         </td>
                       </tr>
                     );
