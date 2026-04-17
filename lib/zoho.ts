@@ -93,6 +93,7 @@ export interface Ticket {
   contactName: string;
   contactEmail: string | null;
   createdTime: string;
+  modifiedTime: string;
   webUrl: string | null;
 }
 
@@ -102,6 +103,7 @@ interface RawTicket {
   subject: string;
   status: string;
   createdTime: string;
+  modifiedTime: string;
   webUrl?: string;
   contact?: {
     firstName?: string;
@@ -136,6 +138,7 @@ export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
         contactName: name || "—",
         contactEmail: t.contact?.email ?? null,
         createdTime: t.createdTime,
+        modifiedTime: t.modifiedTime ?? t.createdTime,
         webUrl: t.webUrl ?? null,
       });
     }

@@ -4,6 +4,30 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Ticket } from "@/lib/zoho";
 
+function formatRelativeTime(dateStr: string): { text: string; className: string } {
+  const date = new Date(dateStr);
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMs / 3_600_000);
+  const diffDays = Math.floor(diffMs / 86_400_000);
+
+  let text: string;
+  if (diffMinutes < 1) text = "just now";
+  else if (diffMinutes < 60) text = `${diffMinutes}m ago`;
+  else if (diffHours < 24) text = `${diffHours}h ago`;
+  else if (diffDays < 30) text = `${diffDays}d ago`;
+  else text = date.toLocaleDateString();
+
+  const className =
+    diffDays >= 7
+      ? "font-medium text-red-600"
+      : diffDays >= 3
+        ? "font-medium text-amber-600"
+        : "text-slate-700";
+
+  return { text, className };
+}
+
 export default function DashboardView({ tickets }: { tickets: Ticket[] }) {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -143,41 +167,52 @@ export default function DashboardView({ tickets }: { tickets: Ticket[] }) {
                     <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Created
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Last Activity
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTickets.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 align-top">
-                        {t.webUrl ? (
-                          <a
-                            href={t.webUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-semibold text-[#FF4D3E] hover:underline"
-                          >
-                            #{t.ticketNumber}
-                          </a>
-                        ) : (
-                          <span className="font-semibold text-slate-900">
-                            #{t.ticketNumber}
-                          </span>
-                        )}
-                        <div className="mt-1 text-sm text-slate-700">
-                          {t.subject}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-slate-700">
-                        {t.contactName}
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-slate-700">
-                        {t.contactEmail ?? "—"}
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-slate-700">
-                        {new Date(t.createdTime).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredTickets.map((t) => {
+                    const lastActivity = formatRelativeTime(t.modifiedTime);
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 align-top">
+                          {t.webUrl ? (
+                            <a
+                              href={t.webUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-[#FF4D3E] hover:underline"
+                            >
+                              #{t.ticketNumber}
+                            </a>
+                          ) : (
+                            <span className="font-semibold text-slate-900">
+                              #{t.ticketNumber}
+                            </span>
+                          )}
+                          <div className="mt-1 text-sm text-slate-700">
+                            {t.subject}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.contactName}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.contactEmail ?? "—"}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {new Date(t.createdTime).toLocaleDateString()}
+                        </td>
+                        <td
+                          className={`px-6 py-4 align-top text-sm ${lastActivity.className}`}
+                        >
+                          {lastActivity.text}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
