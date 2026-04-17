@@ -112,13 +112,25 @@ interface RawTicket {
   };
 }
 
-async function getLatestThreadTime(ticketId: string): Promise<string | null> {
+async function getLatestActivityTime(
+  ticketId: string,
+): Promise<string | null> {
   try {
-    const data = await deskFetch<{ createdTime?: string }>(
-      `/tickets/${ticketId}/latestThread`,
-    );
-    return data.createdTime ?? null;
-  } catch {
+    const data = await deskFetch<{
+      data?: Array<{ createdTime?: string }>;
+    }>(`/tickets/${ticketId}/conversations`, { limit: "100" });
+
+    const conversations = data.data ?? [];
+    let latestMs = 0;
+    for (const c of conversations) {
+      if (c.createdTime) {
+        const ms = new Date(c.createdTime).getTime();
+        if (ms > latestMs) latestMs = ms;
+      }
+    }
+    return latestMs > 0 ? new Date(latestMs).toISOString() : null;
+  } catch (e) {
+    console.error(`Failed to fetch conversations for ticket ${ticketId}:`, e);
     return null;
   }
 }
@@ -160,12 +172,12 @@ export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
 
   await Promise.all(
     tickets.map(async (ticket) => {
-      const threadTime = await getLatestThreadTime(ticket.id);
-      if (!threadTime) return;
+      const activityTime = await getLatestActivityTime(ticket.id);
+      if (!activityTime) return;
       const currentMs = new Date(ticket.lastActivityTime).getTime();
-      const threadMs = new Date(threadTime).getTime();
-      if (threadMs > currentMs) {
-        ticket.lastActivityTime = threadTime;
+      const activityMs = new Date(activityTime).getTime();
+      if (activityMs > currentMs) {
+        ticket.lastActivityTime = activityTime;
       }
     }),
   );
