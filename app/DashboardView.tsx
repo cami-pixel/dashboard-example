@@ -116,7 +116,7 @@ function LiveListingsChart({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex h-64 items-end gap-2">
+        <div className="flex h-64 items-stretch gap-2">
           {months.map((m) => {
             const monthData = byMonth[m.key];
             const monthTotal = Object.values(monthData).reduce(
@@ -125,7 +125,10 @@ function LiveListingsChart({
             );
             const heightPct = (monthTotal / maxMonthTotal) * 100;
             return (
-              <div key={m.key} className="flex flex-1 flex-col items-center">
+              <div
+                key={m.key}
+                className="flex h-full flex-1 flex-col items-center"
+              >
                 <div className="relative flex w-full flex-1 items-end">
                   <div
                     className="flex w-full flex-col-reverse overflow-hidden rounded-t"
