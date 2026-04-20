@@ -59,7 +59,7 @@ function getOrgId(): string {
   return orgId;
 }
 
-export async function deskFetch<T>(
+async function deskFetch<T>(
   path: string,
   params?: Record<string, string>,
 ): Promise<T> {
@@ -164,28 +164,21 @@ async function getLatestActivityTime(
   return latestMs > 0 ? new Date(latestMs).toISOString() : null;
 }
 
-let cachedViewIds: Map<string, string> | null = null;
-
-async function getViewIdByName(name: string): Promise<string> {
-  if (cachedViewIds?.has(name)) return cachedViewIds.get(name)!;
-
-  const data = await deskFetch<{
-    data?: Array<{ id: string; name: string }>;
-  }>("/views", { module: "tickets" });
-
-  cachedViewIds = new Map((data.data ?? []).map((v) => [v.name, v.id]));
-  const id = cachedViewIds.get(name);
-  if (!id) {
-    throw new Error(`Zoho Desk view not found: "${name}"`);
-  }
-  return id;
-}
-
 export interface ClosedTicket {
   id: string;
   status: string;
   becameCustomerDate: string | null;
 }
+
+const CLOSED_ONBOARDING_STATUSES = [
+  "Closed - Won (LIVE) Marketplace",
+  "Closed - Won (LIVE) CM Complete (Approved and Uploaded to RoverPass)",
+  "Closed - Won (LIVE) Website",
+  "Closed - Won (LIVE) CRS",
+  "Closed - Won (LIVE) Premium Listing",
+  "Closed Won",
+  "Closed - Lost",
+];
 
 function extractBecameCustomerDate(
   raw: Record<string, unknown>,
@@ -210,20 +203,20 @@ function extractBecameCustomerDate(
   return null;
 }
 
-export async function getClosedOnboardingTickets(): Promise<ClosedTicket[]> {
-  const viewId = await getViewIdByName("Closed Onboarding");
+async function searchClosedTicketsByStatus(
+  status: string,
+): Promise<ClosedTicket[]> {
   const tickets: ClosedTicket[] = [];
   let from = 0;
   const limit = 100;
 
   while (true) {
     const data = await deskFetch<{ data?: Array<Record<string, unknown>> }>(
-      "/tickets",
+      "/tickets/search",
       {
-        viewId,
+        status,
         from: String(from),
         limit: String(limit),
-        fields: "cf_became_a_customer_date",
       },
     );
 
@@ -231,9 +224,11 @@ export async function getClosedOnboardingTickets(): Promise<ClosedTicket[]> {
     if (batch.length === 0) break;
 
     for (const t of batch) {
+      const ticketStatus = String(t.status ?? "");
+      if (ticketStatus !== status) continue;
       tickets.push({
         id: String(t.id),
-        status: String(t.status ?? "Unknown"),
+        status: ticketStatus,
         becameCustomerDate: extractBecameCustomerDate(t),
       });
     }
@@ -242,6 +237,22 @@ export async function getClosedOnboardingTickets(): Promise<ClosedTicket[]> {
     from += limit;
   }
 
+  return tickets;
+}
+
+export async function getClosedOnboardingTickets(): Promise<ClosedTicket[]> {
+  const perStatus = await Promise.all(
+    CLOSED_ONBOARDING_STATUSES.map((s) => searchClosedTicketsByStatus(s)),
+  );
+  const seen = new Set<string>();
+  const tickets: ClosedTicket[] = [];
+  for (const batch of perStatus) {
+    for (const t of batch) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      tickets.push(t);
+    }
+  }
   return tickets;
 }
 
