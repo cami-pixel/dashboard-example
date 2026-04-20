@@ -82,7 +82,10 @@ async function deskFetch<T>(
     throw new Error(`Zoho Desk API ${res.status}: ${await res.text()}`);
   }
 
-  return res.json() as Promise<T>;
+  if (res.status === 204) return {} as T;
+  const text = await res.text();
+  if (!text) return {} as T;
+  return JSON.parse(text) as T;
 }
 
 export interface Ticket {
