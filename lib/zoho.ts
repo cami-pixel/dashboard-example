@@ -170,6 +170,7 @@ async function getLatestActivityTime(
 export interface ClosedTicket {
   id: string;
   status: string;
+  name: string;
   becameCustomerDate: string | null;
 }
 
@@ -179,7 +180,6 @@ const CLOSED_ONBOARDING_STATUSES = [
   "Closed - Won (LIVE) Website",
   "Closed - Won (LIVE) CRS",
   "Closed - Won (LIVE) Premium Listing",
-  "Closed Won",
   "Closed - Lost",
 ];
 
@@ -229,9 +229,15 @@ async function searchClosedTicketsByStatus(
     for (const t of batch) {
       const ticketStatus = String(t.status ?? "");
       if (ticketStatus !== status) continue;
+      const rawSubject = String(t.subject ?? "").trim();
+      const name =
+        rawSubject.replace(/^[A-Z]{1,3}\s*OB\s*[-–:]\s*/i, "").trim() ||
+        rawSubject ||
+        `#${t.ticketNumber ?? t.id}`;
       tickets.push({
         id: String(t.id),
         status: ticketStatus,
+        name,
         becameCustomerDate: extractBecameCustomerDate(t),
       });
     }

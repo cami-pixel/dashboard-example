@@ -10,7 +10,6 @@ const LIVE_STATUS_ORDER = [
   "Closed - Won (LIVE) Website",
   "Closed - Won (LIVE) CRS",
   "Closed - Won (LIVE) Premium Listing",
-  "Closed Won",
   "Closed - Lost",
 ] as const;
 
@@ -21,7 +20,6 @@ const LIVE_STATUS_LABELS: Record<string, string> = {
   "Closed - Won (LIVE) Website": "Website",
   "Closed - Won (LIVE) CRS": "CRS",
   "Closed - Won (LIVE) Premium Listing": "Premium Listing",
-  "Closed Won": "Closed Won",
   "Closed - Lost": "Closed - Lost",
 };
 
@@ -32,7 +30,6 @@ const LIVE_STATUS_COLORS: Record<string, string> = {
   "Closed - Won (LIVE) Website": "#a855f7",
   "Closed - Won (LIVE) CRS": "#f59e0b",
   "Closed - Won (LIVE) Premium Listing": "#ec4899",
-  "Closed Won": "#64748b",
   "Closed - Lost": "#ef4444",
 };
 
@@ -41,6 +38,11 @@ function LiveListingsChart({
 }: {
   closedTickets: ClosedTicket[];
 }) {
+  const [hovered, setHovered] = useState<{
+    monthKey: string;
+    status: string;
+  } | null>(null);
+
   const now = new Date();
   const months: { key: string; label: string }[] = [];
   for (let i = 11; i >= 0; i--) {
@@ -54,8 +56,8 @@ function LiveListingsChart({
   }
   const monthKeys = new Set(months.map((m) => m.key));
 
-  const byMonth: Record<string, Record<string, number>> = {};
-  for (const m of months) byMonth[m.key] = {};
+  const namesByBucket: Record<string, Record<string, string[]>> = {};
+  for (const m of months) namesByBucket[m.key] = {};
   const totalsByStatus: Record<string, number> = {};
   let totalInRange = 0;
 
@@ -65,7 +67,8 @@ function LiveListingsChart({
     if (isNaN(d.getTime())) continue;
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (!monthKeys.has(key)) continue;
-    byMonth[key][t.status] = (byMonth[key][t.status] ?? 0) + 1;
+    const bucket = namesByBucket[key];
+    (bucket[t.status] ??= []).push(t.name);
     totalsByStatus[t.status] = (totalsByStatus[t.status] ?? 0) + 1;
     totalInRange++;
   }
@@ -73,7 +76,10 @@ function LiveListingsChart({
   const maxMonthTotal = Math.max(
     1,
     ...months.map((m) =>
-      Object.values(byMonth[m.key]).reduce((a, b) => a + b, 0),
+      Object.values(namesByBucket[m.key]).reduce(
+        (sum, names) => sum + names.length,
+        0,
+      ),
     ),
   );
 
@@ -93,7 +99,7 @@ function LiveListingsChart({
         </p>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {LIVE_STATUS_ORDER.map((s) => (
           <div
             key={s}
@@ -117,35 +123,80 @@ function LiveListingsChart({
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex h-64 items-stretch gap-2">
-          {months.map((m) => {
-            const monthData = byMonth[m.key];
+          {months.map((m, mIdx) => {
+            const monthData = namesByBucket[m.key];
             const monthTotal = Object.values(monthData).reduce(
-              (a, b) => a + b,
+              (sum, names) => sum + names.length,
               0,
             );
             const heightPct = (monthTotal / maxMonthTotal) * 100;
+            const isHoveredMonth = hovered?.monthKey === m.key;
+            const hoveredNames =
+              isHoveredMonth && hovered
+                ? (monthData[hovered.status] ?? [])
+                : [];
+            const tooltipAlign =
+              mIdx < 2
+                ? "left-0"
+                : mIdx > months.length - 3
+                  ? "right-0"
+                  : "left-1/2 -translate-x-1/2";
             return (
               <div
                 key={m.key}
-                className="flex h-full flex-1 flex-col items-center"
+                className="relative flex h-full flex-1 flex-col items-center"
               >
+                {isHoveredMonth && hovered && hoveredNames.length > 0 && (
+                  <div
+                    className={`pointer-events-none absolute bottom-full z-20 mb-2 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg ${tooltipAlign}`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{
+                          backgroundColor: LIVE_STATUS_COLORS[hovered.status],
+                        }}
+                      />
+                      <span>
+                        {LIVE_STATUS_LABELS[hovered.status]} —{" "}
+                        {hoveredNames.length}
+                      </span>
+                    </div>
+                    <div className="mt-2 space-y-0.5 text-xs text-slate-700">
+                      {hoveredNames.slice(0, 10).map((n, i) => (
+                        <div key={i} className="truncate">
+                          {n}
+                        </div>
+                      ))}
+                      {hoveredNames.length > 10 && (
+                        <div className="text-slate-400">
+                          +{hoveredNames.length - 10} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="relative flex w-full flex-1 items-end">
                   <div
                     className="flex w-full flex-col-reverse overflow-hidden rounded-t"
                     style={{ height: `${heightPct}%` }}
                   >
                     {LIVE_STATUS_ORDER.map((s) => {
-                      const count = monthData[s] ?? 0;
+                      const count = (monthData[s] ?? []).length;
                       if (count === 0 || monthTotal === 0) return null;
                       const segPct = (count / monthTotal) * 100;
                       return (
                         <div
                           key={s}
+                          className="cursor-pointer transition-opacity hover:opacity-80"
                           style={{
                             backgroundColor: LIVE_STATUS_COLORS[s],
                             height: `${segPct}%`,
                           }}
-                          title={`${LIVE_STATUS_LABELS[s]}: ${count}`}
+                          onMouseEnter={() =>
+                            setHovered({ monthKey: m.key, status: s })
+                          }
+                          onMouseLeave={() => setHovered(null)}
                         />
                       );
                     })}
