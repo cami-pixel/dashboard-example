@@ -498,17 +498,28 @@ export default function DashboardView({
   closedError: string | null;
 }) {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [ticketSearch, setTicketSearch] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  const ticketQ = ticketSearch.trim().toLowerCase();
+  const ticketMatchesSearch = (t: Ticket) =>
+    !ticketQ ||
+    t.subject.toLowerCase().includes(ticketQ) ||
+    t.contactName.toLowerCase().includes(ticketQ) ||
+    (t.contactEmail?.toLowerCase().includes(ticketQ) ?? false) ||
+    t.ticketNumber.toLowerCase().includes(ticketQ);
+
+  const searchedTickets = tickets.filter(ticketMatchesSearch);
+
   const counts: Record<string, number> = {};
-  for (const t of tickets) {
+  for (const t of searchedTickets) {
     counts[t.status] = (counts[t.status] ?? 0) + 1;
   }
 
   const sortedStatuses = Object.entries(counts).sort(([, a], [, b]) => b - a);
   const filteredTickets = selectedStatus
-    ? tickets.filter((t) => t.status === selectedStatus)
+    ? searchedTickets.filter((t) => t.status === selectedStatus)
     : [];
 
   const handleRefresh = () => {
@@ -561,7 +572,11 @@ export default function DashboardView({
           Ticket Statuses
         </p>
         <p className="mt-1 text-sm text-slate-600">
-          {tickets.length} tickets across {sortedStatuses.length} statuses
+          {searchedTickets.length} ticket
+          {searchedTickets.length === 1 ? "" : "s"} across{" "}
+          {sortedStatuses.length} status
+          {sortedStatuses.length === 1 ? "" : "es"}
+          {ticketQ ? ` · matching "${ticketSearch}"` : ""}
           {selectedStatus && (
             <>
               {" · filtering: "}
@@ -571,6 +586,19 @@ export default function DashboardView({
             </>
           )}
         </p>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Search
+        </label>
+        <input
+          type="text"
+          value={ticketSearch}
+          onChange={(e) => setTicketSearch(e.target.value)}
+          placeholder="Campground, contact, email, or ticket #"
+          className="mt-1 w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+        />
       </div>
 
       <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
