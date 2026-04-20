@@ -59,7 +59,7 @@ function getOrgId(): string {
   return orgId;
 }
 
-async function deskFetch<T>(
+export async function deskFetch<T>(
   path: string,
   params?: Record<string, string>,
 ): Promise<T> {
