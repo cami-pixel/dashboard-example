@@ -1,4 +1,5 @@
-import { getTicketsByView } from "@/lib/zoho";
+import type { ClosedTicket } from "@/lib/zoho";
+import { getClosedOnboardingTickets, getTicketsByView } from "@/lib/zoho";
 import DashboardView from "./DashboardView";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +24,15 @@ export default async function Dashboard() {
 
   try {
     const tickets = await getTicketsByView(viewId);
+    let closedTickets: ClosedTicket[] = [];
+    try {
+      closedTickets = await getClosedOnboardingTickets();
+    } catch (err) {
+      console.error("Failed to load Closed Onboarding tickets:", err);
+    }
     return (
       <main className="min-h-screen bg-slate-50 p-8">
-        <DashboardView tickets={tickets} />
+        <DashboardView tickets={tickets} closedTickets={closedTickets} />
       </main>
     );
   } catch (e) {

@@ -2,7 +2,186 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { Ticket } from "@/lib/zoho";
+import type { ClosedTicket, Ticket } from "@/lib/zoho";
+
+const LIVE_STATUS_ORDER = [
+  "Closed - Won (LIVE) Marketplace",
+  "Closed - Won (LIVE) CM Complete (Approved and Uploaded to RoverPass)",
+  "Closed - Won (LIVE) Website",
+  "Closed - Won (LIVE) CRS",
+  "Closed - Won (LIVE) Premium Listing",
+  "Closed Won",
+  "Closed - Lost",
+] as const;
+
+const LIVE_STATUS_LABELS: Record<string, string> = {
+  "Closed - Won (LIVE) Marketplace": "Marketplace",
+  "Closed - Won (LIVE) CM Complete (Approved and Uploaded to RoverPass)":
+    "CM Complete",
+  "Closed - Won (LIVE) Website": "Website",
+  "Closed - Won (LIVE) CRS": "CRS",
+  "Closed - Won (LIVE) Premium Listing": "Premium Listing",
+  "Closed Won": "Closed Won",
+  "Closed - Lost": "Closed - Lost",
+};
+
+const LIVE_STATUS_COLORS: Record<string, string> = {
+  "Closed - Won (LIVE) Marketplace": "#10b981",
+  "Closed - Won (LIVE) CM Complete (Approved and Uploaded to RoverPass)":
+    "#3b82f6",
+  "Closed - Won (LIVE) Website": "#a855f7",
+  "Closed - Won (LIVE) CRS": "#f59e0b",
+  "Closed - Won (LIVE) Premium Listing": "#ec4899",
+  "Closed Won": "#64748b",
+  "Closed - Lost": "#ef4444",
+};
+
+function LiveListingsChart({
+  closedTickets,
+}: {
+  closedTickets: ClosedTicket[];
+}) {
+  const now = new Date();
+  const months: { key: string; label: string }[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("en-US", {
+      month: "short",
+      year: "2-digit",
+    });
+    months.push({ key, label });
+  }
+  const monthKeys = new Set(months.map((m) => m.key));
+
+  const byMonth: Record<string, Record<string, number>> = {};
+  for (const m of months) byMonth[m.key] = {};
+  const totalsByStatus: Record<string, number> = {};
+  let totalInRange = 0;
+
+  for (const t of closedTickets) {
+    if (!t.becameCustomerDate) continue;
+    const d = new Date(t.becameCustomerDate);
+    if (isNaN(d.getTime())) continue;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!monthKeys.has(key)) continue;
+    byMonth[key][t.status] = (byMonth[key][t.status] ?? 0) + 1;
+    totalsByStatus[t.status] = (totalsByStatus[t.status] ?? 0) + 1;
+    totalInRange++;
+  }
+
+  const maxMonthTotal = Math.max(
+    1,
+    ...months.map((m) =>
+      Object.values(byMonth[m.key]).reduce((a, b) => a + b, 0),
+    ),
+  );
+
+  const statusesInLegend = LIVE_STATUS_ORDER.filter(
+    (s) => (totalsByStatus[s] ?? 0) > 0,
+  );
+
+  return (
+    <div className="mb-10">
+      <div className="mb-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Live Listings
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          {totalInRange} ticket{totalInRange === 1 ? "" : "s"} closed in the
+          last 12 months
+        </p>
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+        {LIVE_STATUS_ORDER.map((s) => (
+          <div
+            key={s}
+            className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                style={{ backgroundColor: LIVE_STATUS_COLORS[s] }}
+              />
+              <div className="truncate text-xs font-medium text-slate-600">
+                {LIVE_STATUS_LABELS[s]}
+              </div>
+            </div>
+            <div className="mt-1 text-2xl font-bold text-slate-900">
+              {totalsByStatus[s] ?? 0}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex h-64 items-end gap-2">
+          {months.map((m) => {
+            const monthData = byMonth[m.key];
+            const monthTotal = Object.values(monthData).reduce(
+              (a, b) => a + b,
+              0,
+            );
+            const heightPct = (monthTotal / maxMonthTotal) * 100;
+            return (
+              <div key={m.key} className="flex flex-1 flex-col items-center">
+                <div className="relative flex w-full flex-1 items-end">
+                  <div
+                    className="flex w-full flex-col-reverse overflow-hidden rounded-t"
+                    style={{ height: `${heightPct}%` }}
+                  >
+                    {LIVE_STATUS_ORDER.map((s) => {
+                      const count = monthData[s] ?? 0;
+                      if (count === 0 || monthTotal === 0) return null;
+                      const segPct = (count / monthTotal) * 100;
+                      return (
+                        <div
+                          key={s}
+                          style={{
+                            backgroundColor: LIVE_STATUS_COLORS[s],
+                            height: `${segPct}%`,
+                          }}
+                          title={`${LIVE_STATUS_LABELS[s]}: ${count}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mt-2 text-[10px] font-semibold tabular-nums text-slate-600">
+                  {monthTotal}
+                </div>
+                <div className="text-xs text-slate-500">{m.label}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-4">
+          {statusesInLegend.length === 0 ? (
+            <span className="text-xs text-slate-400">
+              No tickets with a &ldquo;Became a Customer Date&rdquo; in the last
+              12 months.
+            </span>
+          ) : (
+            statusesInLegend.map((s) => (
+              <div
+                key={s}
+                className="flex items-center gap-2 text-xs text-slate-600"
+              >
+                <span
+                  className="inline-block h-3 w-3 rounded"
+                  style={{ backgroundColor: LIVE_STATUS_COLORS[s] }}
+                />
+                <span>{LIVE_STATUS_LABELS[s]}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function formatRelativeTime(dateStr: string): {
   text: string;
@@ -31,7 +210,13 @@ function formatRelativeTime(dateStr: string): {
   return { text, className };
 }
 
-export default function DashboardView({ tickets }: { tickets: Ticket[] }) {
+export default function DashboardView({
+  tickets,
+  closedTickets,
+}: {
+  tickets: Ticket[];
+  closedTickets: ClosedTicket[];
+}) {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -82,6 +267,8 @@ export default function DashboardView({ tickets }: { tickets: Ticket[] }) {
           </button>
         </div>
       </header>
+
+      <LiveListingsChart closedTickets={closedTickets} />
 
       <div className="mb-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">

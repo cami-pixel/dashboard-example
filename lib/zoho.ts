@@ -164,6 +164,87 @@ async function getLatestActivityTime(
   return latestMs > 0 ? new Date(latestMs).toISOString() : null;
 }
 
+let cachedViewIds: Map<string, string> | null = null;
+
+async function getViewIdByName(name: string): Promise<string> {
+  if (cachedViewIds?.has(name)) return cachedViewIds.get(name)!;
+
+  const data = await deskFetch<{
+    data?: Array<{ id: string; name: string }>;
+  }>("/views", { module: "tickets" });
+
+  cachedViewIds = new Map((data.data ?? []).map((v) => [v.name, v.id]));
+  const id = cachedViewIds.get(name);
+  if (!id) {
+    throw new Error(`Zoho Desk view not found: "${name}"`);
+  }
+  return id;
+}
+
+export interface ClosedTicket {
+  id: string;
+  status: string;
+  becameCustomerDate: string | null;
+}
+
+function extractBecameCustomerDate(
+  raw: Record<string, unknown>,
+): string | null {
+  const direct = raw["cf_became_a_customer_date"];
+  if (direct) return String(direct);
+
+  const cf = raw.cf as Record<string, unknown> | undefined;
+  if (cf?.cf_became_a_customer_date) {
+    return String(cf.cf_became_a_customer_date);
+  }
+
+  const customFields = raw.customFields as Record<string, unknown> | undefined;
+  if (customFields) {
+    for (const [k, v] of Object.entries(customFields)) {
+      if (!v) continue;
+      const normalized = k.toLowerCase().replace(/[^a-z]/g, "");
+      if (normalized === "becameacustomerdate") return String(v);
+    }
+  }
+
+  return null;
+}
+
+export async function getClosedOnboardingTickets(): Promise<ClosedTicket[]> {
+  const viewId = await getViewIdByName("Closed Onboarding");
+  const tickets: ClosedTicket[] = [];
+  let from = 0;
+  const limit = 100;
+
+  while (true) {
+    const data = await deskFetch<{ data?: Array<Record<string, unknown>> }>(
+      "/tickets",
+      {
+        viewId,
+        from: String(from),
+        limit: String(limit),
+        fields: "cf_became_a_customer_date",
+      },
+    );
+
+    const batch = data.data ?? [];
+    if (batch.length === 0) break;
+
+    for (const t of batch) {
+      tickets.push({
+        id: String(t.id),
+        status: String(t.status ?? "Unknown"),
+        becameCustomerDate: extractBecameCustomerDate(t),
+      });
+    }
+
+    if (batch.length < limit) break;
+    from += limit;
+  }
+
+  return tickets;
+}
+
 export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
   const tickets: Ticket[] = [];
   let from = 0;
