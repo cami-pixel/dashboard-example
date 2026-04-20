@@ -46,10 +46,28 @@ function LiveListingsChart({
     status: string;
     monthKey: string | null;
   } | null>(null);
+  const [timeRange, setTimeRange] = useState<"1m" | "6m" | "12m">("12m");
+  const [search, setSearch] = useState("");
+
+  const monthCount = timeRange === "1m" ? 1 : timeRange === "6m" ? 6 : 12;
+  const rangeLabel =
+    timeRange === "1m"
+      ? "this month"
+      : timeRange === "6m"
+        ? "the last 6 months"
+        : "the last 12 months";
+
+  const q = search.trim().toLowerCase();
+  const matchesSearch = (t: ClosedTicket) =>
+    !q ||
+    t.name.toLowerCase().includes(q) ||
+    t.contactName.toLowerCase().includes(q) ||
+    (t.contactEmail?.toLowerCase().includes(q) ?? false) ||
+    t.ticketNumber.toLowerCase().includes(q);
 
   const now = new Date();
   const months: { key: string; label: string }[] = [];
-  for (let i = 11; i >= 0; i--) {
+  for (let i = monthCount - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d.toLocaleString("en-US", {
@@ -72,6 +90,7 @@ function LiveListingsChart({
     if (isNaN(d.getTime())) continue;
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (!monthKeys.has(key)) continue;
+    if (!matchesSearch(t)) continue;
     (ticketsByBucket[key][t.status] ??= []).push(t);
     (ticketsByStatus[t.status] ??= []).push(t);
     totalsByStatus[t.status] = (totalsByStatus[t.status] ?? 0) + 1;
@@ -117,9 +136,55 @@ function LiveListingsChart({
           Live Listings
         </p>
         <p className="mt-1 text-sm text-slate-600">
-          {totalInRange} ticket{totalInRange === 1 ? "" : "s"} closed in the
-          last 12 months
+          {totalInRange} ticket{totalInRange === 1 ? "" : "s"} closed in{" "}
+          {rangeLabel}
+          {q ? ` · matching "${search}"` : ""}
         </p>
+      </div>
+
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex-1">
+          <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500">
+            Search
+          </label>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Campground, contact, email, or ticket #"
+            className="mt-1 w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+          />
+        </div>
+        <div className="flex flex-col items-start sm:items-end">
+          <span className="block text-xs font-semibold uppercase tracking-widest text-slate-500">
+            Time range
+          </span>
+          <div className="mt-1 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+            {(
+              [
+                { key: "1m", label: "This month" },
+                { key: "6m", label: "Last 6 months" },
+                { key: "12m", label: "Last 12 months" },
+              ] as const
+            ).map((opt) => {
+              const isActive = timeRange === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setTimeRange(opt.key)}
+                  className={`cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                    isActive
+                      ? "bg-[#FF4D3E] text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
