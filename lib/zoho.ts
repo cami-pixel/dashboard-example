@@ -241,12 +241,10 @@ async function searchClosedTicketsByStatus(
 }
 
 export async function getClosedOnboardingTickets(): Promise<ClosedTicket[]> {
-  const perStatus = await Promise.all(
-    CLOSED_ONBOARDING_STATUSES.map((s) => searchClosedTicketsByStatus(s)),
-  );
   const seen = new Set<string>();
   const tickets: ClosedTicket[] = [];
-  for (const batch of perStatus) {
+  for (const status of CLOSED_ONBOARDING_STATUSES) {
+    const batch = await searchClosedTicketsByStatus(status);
     for (const t of batch) {
       if (seen.has(t.id)) continue;
       seen.add(t.id);

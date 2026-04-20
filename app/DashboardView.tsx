@@ -213,9 +213,11 @@ function formatRelativeTime(dateStr: string): {
 export default function DashboardView({
   tickets,
   closedTickets,
+  closedError,
 }: {
   tickets: Ticket[];
   closedTickets: ClosedTicket[];
+  closedError: string | null;
 }) {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -268,6 +270,12 @@ export default function DashboardView({
         </div>
       </header>
 
+      {closedError && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <div className="font-semibold">Failed to load Live Listings data</div>
+          <div className="mt-1 break-all font-mono text-xs">{closedError}</div>
+        </div>
+      )}
       <LiveListingsChart closedTickets={closedTickets} />
 
       <div className="mb-3">

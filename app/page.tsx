@@ -25,14 +25,20 @@ export default async function Dashboard() {
   try {
     const tickets = await getTicketsByView(viewId);
     let closedTickets: ClosedTicket[] = [];
+    let closedError: string | null = null;
     try {
       closedTickets = await getClosedOnboardingTickets();
     } catch (err) {
+      closedError = err instanceof Error ? err.message : String(err);
       console.error("Failed to load Closed Onboarding tickets:", err);
     }
     return (
       <main className="min-h-screen bg-slate-50 p-8">
-        <DashboardView tickets={tickets} closedTickets={closedTickets} />
+        <DashboardView
+          tickets={tickets}
+          closedTickets={closedTickets}
+          closedError={closedError}
+        />
       </main>
     );
   } catch (e) {
