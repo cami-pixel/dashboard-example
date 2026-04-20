@@ -169,9 +169,13 @@ async function getLatestActivityTime(
 
 export interface ClosedTicket {
   id: string;
+  ticketNumber: string;
   status: string;
   name: string;
   becameCustomerDate: string | null;
+  webUrl: string | null;
+  contactName: string;
+  contactEmail: string | null;
 }
 
 const CLOSED_ONBOARDING_STATUSES = [
@@ -234,11 +238,20 @@ async function searchClosedTicketsByStatus(
         rawSubject.replace(/^[A-Z]{1,3}\s*OB\s*[-–:]\s*/i, "").trim() ||
         rawSubject ||
         `#${t.ticketNumber ?? t.id}`;
+      const contact = t.contact as
+        | { firstName?: string; lastName?: string; email?: string }
+        | undefined;
+      const contactName =
+        `${contact?.firstName ?? ""} ${contact?.lastName ?? ""}`.trim() || "—";
       tickets.push({
         id: String(t.id),
+        ticketNumber: String(t.ticketNumber ?? ""),
         status: ticketStatus,
         name,
         becameCustomerDate: extractBecameCustomerDate(t),
+        webUrl: typeof t.webUrl === "string" ? t.webUrl : null,
+        contactName,
+        contactEmail: contact?.email ?? null,
       });
     }
 

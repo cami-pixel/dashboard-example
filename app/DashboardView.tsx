@@ -42,6 +42,10 @@ function LiveListingsChart({
     monthKey: string;
     status: string;
   } | null>(null);
+  const [liveFilter, setLiveFilter] = useState<{
+    status: string;
+    monthKey: string | null;
+  } | null>(null);
 
   const now = new Date();
   const months: { key: string; label: string }[] = [];
@@ -56,9 +60,10 @@ function LiveListingsChart({
   }
   const monthKeys = new Set(months.map((m) => m.key));
 
-  const namesByBucket: Record<string, Record<string, string[]>> = {};
-  for (const m of months) namesByBucket[m.key] = {};
+  const ticketsByBucket: Record<string, Record<string, ClosedTicket[]>> = {};
+  for (const m of months) ticketsByBucket[m.key] = {};
   const totalsByStatus: Record<string, number> = {};
+  const ticketsByStatus: Record<string, ClosedTicket[]> = {};
   let totalInRange = 0;
 
   for (const t of closedTickets) {
@@ -67,8 +72,8 @@ function LiveListingsChart({
     if (isNaN(d.getTime())) continue;
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (!monthKeys.has(key)) continue;
-    const bucket = namesByBucket[key];
-    (bucket[t.status] ??= []).push(t.name);
+    (ticketsByBucket[key][t.status] ??= []).push(t);
+    (ticketsByStatus[t.status] ??= []).push(t);
     totalsByStatus[t.status] = (totalsByStatus[t.status] ?? 0) + 1;
     totalInRange++;
   }
@@ -76,8 +81,8 @@ function LiveListingsChart({
   const maxMonthTotal = Math.max(
     1,
     ...months.map((m) =>
-      Object.values(namesByBucket[m.key]).reduce(
-        (sum, names) => sum + names.length,
+      Object.values(ticketsByBucket[m.key]).reduce(
+        (sum, arr) => sum + arr.length,
         0,
       ),
     ),
@@ -86,6 +91,24 @@ function LiveListingsChart({
   const statusesInLegend = LIVE_STATUS_ORDER.filter(
     (s) => (totalsByStatus[s] ?? 0) > 0,
   );
+
+  const filteredTickets: ClosedTicket[] = liveFilter
+    ? liveFilter.monthKey
+      ? (ticketsByBucket[liveFilter.monthKey]?.[liveFilter.status] ?? [])
+      : (ticketsByStatus[liveFilter.status] ?? [])
+    : [];
+  const filteredTicketsSorted = [...filteredTickets].sort((a, b) => {
+    const ad = a.becameCustomerDate
+      ? new Date(a.becameCustomerDate).getTime()
+      : 0;
+    const bd = b.becameCustomerDate
+      ? new Date(b.becameCustomerDate).getTime()
+      : 0;
+    return bd - ad;
+  });
+  const filterMonthLabel = liveFilter?.monthKey
+    ? months.find((m) => m.key === liveFilter.monthKey)?.label
+    : null;
 
   return (
     <div className="mb-10">
@@ -100,38 +123,62 @@ function LiveListingsChart({
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {LIVE_STATUS_ORDER.map((s) => (
-          <div
-            key={s}
-            className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
-                style={{ backgroundColor: LIVE_STATUS_COLORS[s] }}
-              />
-              <div className="truncate text-xs font-medium text-slate-600">
-                {LIVE_STATUS_LABELS[s]}
+        {LIVE_STATUS_ORDER.map((s) => {
+          const count = totalsByStatus[s] ?? 0;
+          const isSelected =
+            liveFilter?.status === s && liveFilter.monthKey === null;
+          return (
+            <button
+              key={s}
+              type="button"
+              disabled={count === 0}
+              onClick={() =>
+                setLiveFilter(
+                  isSelected ? null : { status: s, monthKey: null },
+                )
+              }
+              className={`rounded-xl border p-3 text-left shadow-sm transition ${
+                isSelected
+                  ? "border-[#FF4D3E] bg-[#FF4D3E]"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-200 disabled:hover:shadow-sm"
+              } ${count > 0 ? "cursor-pointer" : ""}`}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: LIVE_STATUS_COLORS[s] }}
+                />
+                <div
+                  className={`truncate text-xs font-medium ${
+                    isSelected ? "text-white/90" : "text-slate-600"
+                  }`}
+                >
+                  {LIVE_STATUS_LABELS[s]}
+                </div>
               </div>
-            </div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">
-              {totalsByStatus[s] ?? 0}
-            </div>
-          </div>
-        ))}
+              <div
+                className={`mt-1 text-2xl font-bold ${
+                  isSelected ? "text-white" : "text-slate-900"
+                }`}
+              >
+                {count}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex h-64 items-stretch gap-2">
           {months.map((m, mIdx) => {
-            const monthData = namesByBucket[m.key];
+            const monthData = ticketsByBucket[m.key];
             const monthTotal = Object.values(monthData).reduce(
-              (sum, names) => sum + names.length,
+              (sum, arr) => sum + arr.length,
               0,
             );
             const heightPct = (monthTotal / maxMonthTotal) * 100;
             const isHoveredMonth = hovered?.monthKey === m.key;
-            const hoveredNames =
+            const hoveredTickets =
               isHoveredMonth && hovered
                 ? (monthData[hovered.status] ?? [])
                 : [];
@@ -146,7 +193,7 @@ function LiveListingsChart({
                 key={m.key}
                 className="relative flex h-full flex-1 flex-col items-center"
               >
-                {isHoveredMonth && hovered && hoveredNames.length > 0 && (
+                {isHoveredMonth && hovered && hoveredTickets.length > 0 && (
                   <div
                     className={`pointer-events-none absolute bottom-full z-20 mb-2 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg ${tooltipAlign}`}
                   >
@@ -159,20 +206,23 @@ function LiveListingsChart({
                       />
                       <span>
                         {LIVE_STATUS_LABELS[hovered.status]} —{" "}
-                        {hoveredNames.length}
+                        {hoveredTickets.length}
                       </span>
                     </div>
                     <div className="mt-2 space-y-0.5 text-xs text-slate-700">
-                      {hoveredNames.slice(0, 10).map((n, i) => (
-                        <div key={i} className="truncate">
-                          {n}
+                      {hoveredTickets.slice(0, 10).map((t) => (
+                        <div key={t.id} className="truncate">
+                          {t.name}
                         </div>
                       ))}
-                      {hoveredNames.length > 10 && (
+                      {hoveredTickets.length > 10 && (
                         <div className="text-slate-400">
-                          +{hoveredNames.length - 10} more
+                          +{hoveredTickets.length - 10} more
                         </div>
                       )}
+                    </div>
+                    <div className="mt-2 border-t border-slate-100 pt-1 text-[10px] text-slate-400">
+                      Click to view details
                     </div>
                   </div>
                 )}
@@ -185,10 +235,15 @@ function LiveListingsChart({
                       const count = (monthData[s] ?? []).length;
                       if (count === 0 || monthTotal === 0) return null;
                       const segPct = (count / monthTotal) * 100;
+                      const isSelected =
+                        liveFilter?.status === s &&
+                        liveFilter.monthKey === m.key;
                       return (
                         <div
                           key={s}
-                          className="cursor-pointer transition-opacity hover:opacity-80"
+                          className={`cursor-pointer transition-opacity hover:opacity-80 ${
+                            isSelected ? "ring-2 ring-[#FF4D3E]" : ""
+                          }`}
                           style={{
                             backgroundColor: LIVE_STATUS_COLORS[s],
                             height: `${segPct}%`,
@@ -197,6 +252,13 @@ function LiveListingsChart({
                             setHovered({ monthKey: m.key, status: s })
                           }
                           onMouseLeave={() => setHovered(null)}
+                          onClick={() =>
+                            setLiveFilter(
+                              isSelected
+                                ? null
+                                : { status: s, monthKey: m.key },
+                            )
+                          }
                         />
                       );
                     })}
@@ -233,6 +295,103 @@ function LiveListingsChart({
           )}
         </div>
       </div>
+
+      {liveFilter && (
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{
+                    backgroundColor: LIVE_STATUS_COLORS[liveFilter.status],
+                  }}
+                />
+                <h2 className="text-lg font-bold text-slate-900">
+                  {LIVE_STATUS_LABELS[liveFilter.status]}
+                  {filterMonthLabel ? ` · ${filterMonthLabel}` : ""}
+                </h2>
+              </div>
+              <p className="mt-0.5 text-sm text-slate-500">
+                {filteredTicketsSorted.length} ticket
+                {filteredTicketsSorted.length === 1 ? "" : "s"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLiveFilter(null)}
+              className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50"
+            >
+              Clear ✕
+            </button>
+          </div>
+          {filteredTicketsSorted.length === 0 ? (
+            <div className="px-6 py-10 text-center text-slate-500">
+              No tickets in this bucket.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Ticket
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Customer
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Contact
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Became Customer
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTicketsSorted.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 align-top">
+                        {t.webUrl ? (
+                          <a
+                            href={t.webUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-[#FF4D3E] hover:underline"
+                          >
+                            #{t.ticketNumber}
+                          </a>
+                        ) : (
+                          <span className="font-semibold text-slate-900">
+                            #{t.ticketNumber}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 align-top text-sm text-slate-700">
+                        {t.name}
+                      </td>
+                      <td className="px-6 py-4 align-top text-sm text-slate-700">
+                        {t.contactName}
+                      </td>
+                      <td className="px-6 py-4 align-top text-sm text-slate-700">
+                        {t.contactEmail ?? "—"}
+                      </td>
+                      <td className="px-6 py-4 align-top text-sm text-slate-700">
+                        {t.becameCustomerDate
+                          ? new Date(t.becameCustomerDate).toLocaleDateString()
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
