@@ -138,6 +138,7 @@ export interface Ticket {
   status: string;
   contactName: string;
   contactEmail: string | null;
+  ownerName: string | null;
   createdTime: string;
   lastActivityTime: string;
   webUrl: string | null;
@@ -157,6 +158,13 @@ interface RawTicket {
     lastName?: string;
     email?: string;
   };
+  assignee?: {
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    email?: string;
+  } | null;
+  ownerName?: string;
 }
 
 async function fetchAllActivityPages(
@@ -418,6 +426,7 @@ export interface ClosedTicket {
   webUrl: string | null;
   contactName: string;
   contactEmail: string | null;
+  ownerName: string | null;
 }
 
 const CLOSED_ONBOARDING_STATUSES = [
@@ -452,6 +461,27 @@ function extractBecameCustomerDate(
   return null;
 }
 
+function extractOwnerName(raw: Record<string, unknown>): string | null {
+  const assignee = raw.assignee as
+    | {
+        firstName?: string;
+        lastName?: string;
+        name?: string;
+        email?: string;
+      }
+    | null
+    | undefined;
+  if (assignee) {
+    const combined = `${assignee.firstName ?? ""} ${assignee.lastName ?? ""}`.trim();
+    if (combined) return combined;
+    if (assignee.name) return assignee.name;
+    if (assignee.email) return assignee.email;
+  }
+  const ownerName = raw.ownerName;
+  if (typeof ownerName === "string" && ownerName.trim()) return ownerName;
+  return null;
+}
+
 function toClosedTicket(t: Record<string, unknown>): ClosedTicket {
   const rawSubject = String(t.subject ?? "").trim();
   const name =
@@ -473,6 +503,7 @@ function toClosedTicket(t: Record<string, unknown>): ClosedTicket {
     webUrl: typeof t.webUrl === "string" ? t.webUrl : null,
     contactName,
     contactEmail: contact?.email ?? null,
+    ownerName: extractOwnerName(t),
   };
 }
 
@@ -543,7 +574,7 @@ async function getClosedOnboardingTicketsFromView(
         viewId,
         from: String(from),
         limit: String(limit),
-        include: "contacts",
+        include: "contacts,assignee",
         fields: "cf_became_a_customer_date",
       },
     );
@@ -664,7 +695,7 @@ export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
       viewId,
       from: String(from),
       limit: String(limit),
-      include: "contacts",
+      include: "contacts,assignee",
     });
 
     const batch = data.data ?? [];
@@ -679,6 +710,7 @@ export async function getTicketsByView(viewId: string): Promise<Ticket[]> {
         status: t.status || "Unknown",
         contactName: name || "—",
         contactEmail: t.contact?.email ?? null,
+        ownerName: extractOwnerName(t as unknown as Record<string, unknown>),
         createdTime: t.createdTime,
         lastActivityTime: t.modifiedTime ?? t.createdTime,
         webUrl: t.webUrl ?? null,

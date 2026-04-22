@@ -412,6 +412,9 @@ function LiveListingsChart({
                       Email
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Owner
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Created
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -454,6 +457,9 @@ function LiveListingsChart({
                         </td>
                         <td className="px-6 py-4 align-top text-sm text-slate-700">
                           {t.contactEmail ?? "—"}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.ownerName ?? "—"}
                         </td>
                         <td className="px-6 py-4 align-top text-sm text-slate-700">
                           {t.createdTime
@@ -777,6 +783,9 @@ export default function DashboardView({
                       Email
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Owner
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Created
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -816,6 +825,9 @@ export default function DashboardView({
                         </td>
                         <td className="px-6 py-4 align-top text-sm text-slate-700">
                           {t.contactEmail ?? "—"}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.ownerName ?? "—"}
                         </td>
                         <td className="px-6 py-4 align-top text-sm text-slate-700">
                           {new Date(t.createdTime).toLocaleDateString()}
