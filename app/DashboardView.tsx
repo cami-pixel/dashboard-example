@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ClosedTicket, Ticket } from "@/lib/zoho";
 
@@ -86,8 +86,8 @@ function LiveListingsChart({
 
   for (const t of closedTickets) {
     if (!t.becameCustomerDate) continue;
-    const d = new Date(t.becameCustomerDate);
-    if (isNaN(d.getTime())) continue;
+    const d = parseDateFlexible(t.becameCustomerDate);
+    if (!d) continue;
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (!monthKeys.has(key)) continue;
     if (!matchesSearch(t)) continue;
@@ -118,10 +118,10 @@ function LiveListingsChart({
     : [];
   const filteredTicketsSorted = [...filteredTickets].sort((a, b) => {
     const ad = a.becameCustomerDate
-      ? new Date(a.becameCustomerDate).getTime()
+      ? (parseDateFlexible(a.becameCustomerDate)?.getTime() ?? 0)
       : 0;
     const bd = b.becameCustomerDate
-      ? new Date(b.becameCustomerDate).getTime()
+      ? (parseDateFlexible(b.becameCustomerDate)?.getTime() ?? 0)
       : 0;
     return bd - ad;
   });
@@ -412,45 +412,65 @@ function LiveListingsChart({
                       Email
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Created
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Became Customer
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Time to Close
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredTicketsSorted.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 align-top">
-                        {t.webUrl ? (
-                          <a
-                            href={t.webUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-semibold text-[#FF4D3E] hover:underline"
-                          >
-                            #{t.ticketNumber}
-                          </a>
-                        ) : (
-                          <span className="font-semibold text-slate-900">
-                            #{t.ticketNumber}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-slate-700">
-                        {t.name}
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-slate-700">
-                        {t.contactName}
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-slate-700">
-                        {t.contactEmail ?? "—"}
-                      </td>
-                      <td className="px-6 py-4 align-top text-sm text-slate-700">
-                        {t.becameCustomerDate
-                          ? new Date(t.becameCustomerDate).toLocaleDateString()
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredTicketsSorted.map((t) => {
+                    const timeToClose = formatTimeToClose(
+                      t.createdTime,
+                      t.becameCustomerDate,
+                    );
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 align-top">
+                          {t.webUrl ? (
+                            <a
+                              href={t.webUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-[#FF4D3E] hover:underline"
+                            >
+                              #{t.ticketNumber}
+                            </a>
+                          ) : (
+                            <span className="font-semibold text-slate-900">
+                              #{t.ticketNumber}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.name}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.contactName}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.contactEmail ?? "—"}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.createdTime
+                            ? formatDateFlexible(t.createdTime)
+                            : "—"}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {t.becameCustomerDate
+                            ? formatDateFlexible(t.becameCustomerDate)
+                            : "—"}
+                        </td>
+                        <td className="px-6 py-4 align-top text-sm text-slate-700">
+                          {timeToClose}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -461,12 +481,79 @@ function LiveListingsChart({
   );
 }
 
-function formatRelativeTime(dateStr: string): {
+function parseDateFlexible(dateStr: string): Date | null {
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (dateOnlyMatch) {
+    const [, y, m, d] = dateOnlyMatch;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+  const d = new Date(dateStr);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+function formatDateFlexible(dateStr: string): string {
+  const d = parseDateFlexible(dateStr);
+  return d ? d.toLocaleDateString() : "—";
+}
+
+function formatTimeToClose(
+  createdTime: string | null,
+  becameCustomerDate: string | null,
+): string {
+  if (!createdTime || !becameCustomerDate) return "—";
+  const start = parseDateFlexible(createdTime);
+  const end = parseDateFlexible(becameCustomerDate);
+  if (!start || !end) return "—";
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return "—";
+  const diffMs = endMs - startMs;
+  if (diffMs < 0) return "—";
+  const days = Math.floor(diffMs / 86_400_000);
+  if (days < 1) return "Same day";
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"}`;
+  const months = Math.floor(days / 30);
+  const remDays = days % 30;
+  if (months < 12) {
+    return remDays === 0
+      ? `${months} mo`
+      : `${months} mo ${remDays}d`;
+  }
+  const years = Math.floor(months / 12);
+  const remMonths = months % 12;
+  return remMonths === 0 ? `${years}y` : `${years}y ${remMonths}mo`;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatRelativeTime(
+  dateStr: string,
+  now: number | null,
+): {
   text: string;
   className: string;
 } {
   const date = new Date(dateStr);
-  const diffMs = Date.now() - date.getTime();
+  if (now === null) {
+    return {
+      text: date.toLocaleDateString("en-US"),
+      className: "bg-slate-50 text-slate-700",
+    };
+  }
+  const diffMs = now - date.getTime();
   const diffMinutes = Math.floor(diffMs / 60_000);
   const diffHours = Math.floor(diffMs / 3_600_000);
   const diffDays = Math.floor(diffMs / 86_400_000);
@@ -476,7 +563,7 @@ function formatRelativeTime(dateStr: string): {
   else if (diffMinutes < 60) text = `${diffMinutes}m ago`;
   else if (diffHours < 24) text = `${diffHours}h ago`;
   else if (diffDays < 30) text = `${diffDays}d ago`;
-  else text = date.toLocaleDateString();
+  else text = date.toLocaleDateString("en-US");
 
   const className =
     diffDays >= 7
@@ -500,7 +587,14 @@ export default function DashboardView({
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [ticketSearch, setTicketSearch] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [now, setNow] = useState<number | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const ticketQ = ticketSearch.trim().toLowerCase();
   const ticketMatchesSearch = (t: Ticket) =>
@@ -688,11 +782,14 @@ export default function DashboardView({
                     <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Last Activity
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Pinned Note
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredTickets.map((t) => {
-                    const lastActivity = formatRelativeTime(t.lastActivityTime);
+                    const lastActivity = formatRelativeTime(t.lastActivityTime, now);
                     return (
                       <tr key={t.id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 align-top">
@@ -729,6 +826,32 @@ export default function DashboardView({
                           >
                             {lastActivity.text}
                           </span>
+                        </td>
+                        <td className="max-w-xs px-6 py-4 align-top text-sm text-slate-700">
+                          {t.pinnedComments.length > 0 ? (
+                            (() => {
+                              const pin = t.pinnedComments[0];
+                              const text = stripHtml(pin.content);
+                              const preview =
+                                text.length > 120
+                                  ? `${text.slice(0, 120)}…`
+                                  : text;
+                              return (
+                                <div title={text}>
+                                  <div className="line-clamp-3 whitespace-pre-wrap">
+                                    {preview}
+                                  </div>
+                                  <div className="mt-1 text-xs text-slate-400">
+                                    {pin.commenterName ?? "Unknown"}
+                                    {pin.pinnedTime &&
+                                      ` · pinned ${new Date(pin.pinnedTime).toLocaleDateString("en-US")}`}
+                                  </div>
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
                         </td>
                       </tr>
                     );
